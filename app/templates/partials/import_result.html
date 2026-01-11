@@ -1,0 +1,63 @@
+<!-- Import result display -->
+<div class="glass-card rounded-xl p-6 mt-6">
+    <div class="flex items-start gap-4">
+        {% if result.created > 0 %}
+        <div class="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+            <svg class="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+        </div>
+        {% else %}
+        <div class="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+            <svg class="w-6 h-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+        </div>
+        {% endif %}
+        
+        <div class="flex-1">
+            <h3 class="font-display text-lg font-semibold text-white mb-2">
+                {% if result.created > 0 %}
+                Import Successful!
+                {% else %}
+                No New Transactions
+                {% endif %}
+            </h3>
+            
+            <div class="space-y-2 text-sm">
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-400">Transactions created:</span>
+                    <span class="text-white font-medium">{{ result.created }}</span>
+                </div>
+                
+                {% if result.duplicates > 0 %}
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-400">Duplicates skipped:</span>
+                    <span class="text-amber-400 font-medium">{{ result.duplicates }}</span>
+                </div>
+                {% endif %}
+            </div>
+            
+            {% if result.duplicates > 0 %}
+            <div class="mt-4 p-3 bg-amber-900/20 rounded-lg border border-amber-500/20">
+                <p class="text-sm text-amber-200">
+                    Some transactions were already imported. YNAB automatically detects duplicates based on the import ID.
+                </p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="mt-6 flex gap-3">
+        <a href="/" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-lg transition-colors">
+            Import More
+        </a>
+        <a href="https://app.ynab.com" target="_blank" 
+           class="px-4 py-2 bg-gradient-to-r from-accent to-blue-500 text-white font-medium rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2">
+            <span>Open YNAB</span>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+            </svg>
+        </a>
+    </div>
+</div>

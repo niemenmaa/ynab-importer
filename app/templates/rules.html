@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+
+{% block title %}Rules - YNAB Importer{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="font-display text-3xl font-bold text-white">Categorization Rules</h1>
+            <p class="text-slate-400 mt-1">Rules are evaluated in priority order. First match wins.</p>
+        </div>
+        <button onclick="openCreateModal()" 
+                class="px-4 py-2.5 bg-gradient-to-r from-accent to-blue-500 text-white font-semibold rounded-xl hover:opacity-90 transition-opacity flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+            </svg>
+            <span>New Rule</span>
+        </button>
+    </div>
+    
+    <!-- Rules table -->
+    <div class="glass-card rounded-xl overflow-hidden">
+        <table class="w-full">
+            <thead>
+                <tr class="border-b border-slate-700/50 text-left">
+                    <th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider w-16">Priority</th>
+                    <th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Name</th>
+                    <th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Conditions</th>
+                    <th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Category</th>
+                    <th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider w-24">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="rules-list">
+                {% for rule in rules %}
+                {% include "partials/rule_row.html" %}
+                {% else %}
+                <tr>
+                    <td colspan="5" class="px-4 py-12 text-center">
+                        <div class="text-slate-400">
+                            <svg class="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                            </svg>
+                            <p>No rules yet. Create your first rule to automate categorization.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Tips section -->
+    <div class="glass-card rounded-xl p-6">
+        <h3 class="font-display text-lg font-semibold text-white mb-4">Rule Tips</h3>
+        <div class="grid md:grid-cols-2 gap-4 text-sm">
+            <div class="flex gap-3">
+                <div class="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center flex-shrink-0">
+                    <span class="text-accent font-bold">1</span>
+                </div>
+                <div>
+                    <p class="text-slate-300 font-medium">Higher priority wins</p>
+                    <p class="text-slate-400">Rules with higher priority numbers are checked first.</p>
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <div class="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center flex-shrink-0">
+                    <span class="text-accent font-bold">2</span>
+                </div>
+                <div>
+                    <p class="text-slate-300 font-medium">All conditions must match</p>
+                    <p class="text-slate-400">If you set multiple conditions, all must be true for the rule to apply.</p>
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <div class="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center flex-shrink-0">
+                    <span class="text-accent font-bold">3</span>
+                </div>
+                <div>
+                    <p class="text-slate-300 font-medium">Use "contains" for flexibility</p>
+                    <p class="text-slate-400">Payee contains "PRISMA" matches "PRISMA SELLO" and "PRISMA JUMBO".</p>
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <div class="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center flex-shrink-0">
+                    <span class="text-accent font-bold">4</span>
+                </div>
+                <div>
+                    <p class="text-slate-300 font-medium">Use exact amount for recurring</p>
+                    <p class="text-slate-400">Fixed payments like rent or loans work great with exact amount matching.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create/Edit Rule Modal -->
+<div id="rule-modal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen px-4">
+        <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" onclick="closeModal()"></div>
+        <div class="relative glass-card rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h3 class="font-display text-xl font-semibold text-white mb-6" id="modal-title">Create Rule</h3>
+            
+            <form id="rule-form" hx-swap="outerHTML" hx-target="closest tr">
+                <input type="hidden" name="rule_id" id="rule-id">
+                
+                <div class="grid md:grid-cols-2 gap-6">
+                    <!-- Basic info -->
+                    <div class="md:col-span-2 grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-1">Rule Name *</label>
+                            <input type="text" name="name" id="rule-name" required
+                                   placeholder="e.g., Groceries at Prisma"
+                                   class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:border-accent focus:ring-1 focus:ring-accent outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-1">Priority</label>
+                            <input type="number" name="priority" id="rule-priority" value="10"
+                                   class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:border-accent focus:ring-1 focus:ring-accent outline-none">
+                            <p class="text-xs text-slate-500 mt-1">Higher number = checked first</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Payee conditions -->
+                    <div class="md:col-span-2">
+                        <h4 class="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                            </svg>
+                            Payee Conditions
+                        </h4>
+                        <div class="grid md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Exact Match</label>
+                                <input type="text" name="payee_exact" id="rule-payee-exact"
+                                       placeholder="PRISMA SELLO"
+                                       class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:border-accent focus:ring-1 focus:ring-accent outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Contains</label>
+                                <input type="text" name="payee_contains" id="rule-payee-contains"
+                                       placeholder="PRISMA"
+                                       class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:border-accent focus:ring-1 focus:ring-accent outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Regex Pattern</label>
+                                <input type="text" name="payee_regex" id="rule-payee-regex"
+                                       placeholder="S-MARKET.*"
+                                       class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm font-mono placeholder-slate-500 focus:border-accent focus:ring-1 focus:ring-accent outline-none">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Memo conditions -->
+                    <div class="md:col-span-2">
+                        <h4 class="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>
+                            </svg>
+                            Memo Conditions
+                        </h4>
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Contains</label>
+                                <input type="text" name="memo_contains" id="rule-memo-contains"
+                                       placeholder="LAINA"
+                                       class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:border-accent focus:ring-1 focus:ring-accent outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Regex Pattern</label>
+                                <input type="text" name="memo_regex" id="rule-memo-regex"
+                                       placeholder="VIITE.*12345"
+                                       class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm font-mono placeholder-slate-500 focus:border-accent focus:ring-1 focus:ring-accent outline-none">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Amount conditions -->
+                    <div class="md:col-span-2">
+                        <h4 class="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            Amount Conditions
+                        </h4>
+                        <div class="grid md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Exact Amount</label>
+                                <input type="number" step="0.01" name="amount_exact" id="rule-amount-exact"
+                                       placeholder="-892.00"
+                                       class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:border-accent focus:ring-1 focus:ring-accent outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Min Amount</label>
+                                <input type="number" step="0.01" name="amount_min" id="rule-amount-min"
+                                       placeholder="-1000"
+                                       class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:border-accent focus:ring-1 focus:ring-accent outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Max Amount</label>
+                                <input type="number" step="0.01" name="amount_max" id="rule-amount-max"
+                                       placeholder="-800"
+                                       class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:border-accent focus:ring-1 focus:ring-accent outline-none">
+                            </div>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-2">Use negative numbers for expenses (e.g., -50.00)</p>
+                    </div>
+                    
+                    <!-- Category selection -->
+                    <div class="md:col-span-2">
+                        <h4 class="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+                            </svg>
+                            Category (Action)
+                        </h4>
+                        <select name="category_id" id="rule-category" required
+                                onchange="updateCategoryName(this)"
+                                class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:border-accent focus:ring-1 focus:ring-accent outline-none">
+                            <option value="">Select category...</option>
+                            {% for cat in categories %}
+                            <option value="{{ cat.id }}" data-name="{{ cat.display_name }}">{{ cat.display_name }}</option>
+                            {% endfor %}
+                        </select>
+                        <input type="hidden" name="category_name" id="rule-category-name">
+                    </div>
+                </div>
+                
+                <div class="mt-8 flex justify-end gap-3 border-t border-slate-700/50 pt-6">
+                    <button type="button" onclick="closeModal()" 
+                            class="px-4 py-2 text-slate-300 hover:text-white transition-colors">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            class="px-6 py-2 bg-gradient-to-r from-accent to-blue-500 text-white font-semibold rounded-lg hover:opacity-90 transition-opacity">
+                        Save Rule
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openCreateModal() {
+        document.getElementById('modal-title').textContent = 'Create Rule';
+        document.getElementById('rule-form').setAttribute('hx-post', '/rules');
+        document.getElementById('rule-form').removeAttribute('hx-put');
+        document.getElementById('rule-form').reset();
+        document.getElementById('rule-priority').value = '10';
+        document.getElementById('rule-modal').classList.remove('hidden');
+        htmx.process(document.getElementById('rule-form'));
+    }
+    
+    function openEditModal(ruleId) {
+        const row = document.querySelector(`tr[data-rule-id="${ruleId}"]`);
+        if (!row) return;
+        
+        document.getElementById('modal-title').textContent = 'Edit Rule';
+        document.getElementById('rule-form').setAttribute('hx-put', `/rules/${ruleId}`);
+        document.getElementById('rule-form').removeAttribute('hx-post');
+        document.getElementById('rule-id').value = ruleId;
+        
+        // Populate form from data attributes
+        document.getElementById('rule-name').value = row.dataset.name || '';
+        document.getElementById('rule-priority').value = row.dataset.priority || '10';
+        document.getElementById('rule-payee-exact').value = row.dataset.payeeExact || '';
+        document.getElementById('rule-payee-contains').value = row.dataset.payeeContains || '';
+        document.getElementById('rule-payee-regex').value = row.dataset.payeeRegex || '';
+        document.getElementById('rule-memo-contains').value = row.dataset.memoContains || '';
+        document.getElementById('rule-memo-regex').value = row.dataset.memoRegex || '';
+        document.getElementById('rule-amount-exact').value = row.dataset.amountExact || '';
+        document.getElementById('rule-amount-min').value = row.dataset.amountMin || '';
+        document.getElementById('rule-amount-max').value = row.dataset.amountMax || '';
+        document.getElementById('rule-category').value = row.dataset.categoryId || '';
+        document.getElementById('rule-category-name').value = row.dataset.categoryName || '';
+        
+        document.getElementById('rule-modal').classList.remove('hidden');
+        htmx.process(document.getElementById('rule-form'));
+    }
+    
+    function closeModal() {
+        document.getElementById('rule-modal').classList.add('hidden');
+    }
+    
+    function updateCategoryName(select) {
+        const option = select.options[select.selectedIndex];
+        document.getElementById('rule-category-name').value = option.dataset.name || '';
+    }
+    
+    function confirmDelete(ruleId) {
+        if (confirm('Are you sure you want to delete this rule?')) {
+            fetch(`/rules/${ruleId}`, { method: 'DELETE' })
+                .then(response => {
+                    if (response.ok) {
+                        document.querySelector(`tr[data-rule-id="${ruleId}"]`).remove();
+                        showToast('Rule deleted', 'success');
+                    } else {
+                        showToast('Failed to delete rule', 'error');
+                    }
+                });
+        }
+    }
+    
+    // Close modal on successful form submission
+    document.body.addEventListener('htmx:afterSwap', function(evt) {
+        if (evt.detail.target.tagName === 'TR') {
+            closeModal();
+            showToast('Rule saved!', 'success');
+        }
+    });
+</script>
+{% endblock %}

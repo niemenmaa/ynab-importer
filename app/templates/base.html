@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}YNAB Importer{% endblock %}</title>
+    
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'ynab-blue': '#2563eb',
+                        'ynab-dark': '#1e293b',
+                        'surface': '#0f172a',
+                        'surface-light': '#1e293b',
+                        'accent': '#38bdf8',
+                        'accent-warm': '#f472b6',
+                    },
+                    fontFamily: {
+                        'display': ['Outfit', 'system-ui', 'sans-serif'],
+                        'body': ['DM Sans', 'system-ui', 'sans-serif'],
+                        'mono': ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    
+    <style>
+        body {
+            font-family: 'DM Sans', system-ui, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+            min-height: 100vh;
+        }
+        
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Outfit', system-ui, sans-serif;
+        }
+        
+        code, pre {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        
+        /* Drop zone styling */
+        .drop-zone {
+            border: 2px dashed #475569;
+            transition: all 0.3s ease;
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: #38bdf8;
+            background: rgba(56, 189, 248, 0.1);
+        }
+        
+        /* HTMX loading indicator */
+        .htmx-request .htmx-indicator {
+            opacity: 1;
+        }
+        .htmx-indicator {
+            opacity: 0;
+            transition: opacity 200ms ease-in;
+        }
+        
+        /* Table row animations */
+        .transaction-row {
+            transition: background-color 0.2s ease;
+        }
+        .transaction-row:hover {
+            background-color: rgba(56, 189, 248, 0.05);
+        }
+        
+        /* Pulse animation for items needing review */
+        @keyframes subtle-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .needs-review {
+            animation: subtle-pulse 2s ease-in-out infinite;
+        }
+        
+        /* Glass morphism card */
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(71, 85, 105, 0.5);
+        }
+    </style>
+    
+    {% block head %}{% endblock %}
+</head>
+<body class="h-full text-slate-200">
+    <!-- Navigation -->
+    <nav class="border-b border-slate-700/50 bg-surface/80 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="/" class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-accent-warm flex items-center justify-center">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                            </svg>
+                        </div>
+                        <span class="font-display font-semibold text-xl text-white">YNAB Importer</span>
+                    </a>
+                </div>
+                <div class="flex items-center gap-4">
+                    <a href="/rules" class="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-lg transition-colors">
+                        Rules
+                    </a>
+                    <a href="#" class="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-lg transition-colors">
+                        Settings
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Main content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {% block content %}{% endblock %}
+    </main>
+    
+    <!-- Toast notifications container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2"></div>
+    
+    <script>
+        // Toast notification helper
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const colors = {
+                success: 'bg-emerald-600',
+                error: 'bg-red-600',
+                info: 'bg-blue-600',
+                warning: 'bg-amber-600'
+            };
+            toast.className = `${colors[type]} text-white px-4 py-3 rounded-lg shadow-lg transform transition-all duration-300 translate-x-full`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            
+            // Animate in
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-x-full');
+            });
+            
+            // Remove after delay
+            setTimeout(() => {
+                toast.classList.add('translate-x-full');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+        
+        // File drop zone handling
+        document.addEventListener('DOMContentLoaded', function() {
+            const dropZone = document.querySelector('.drop-zone');
+            if (dropZone) {
+                ['dragenter', 'dragover'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, (e) => {
+                        e.preventDefault();
+                        dropZone.classList.add('dragover');
+                    });
+                });
+                
+                ['dragleave', 'drop'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, (e) => {
+                        e.preventDefault();
+                        dropZone.classList.remove('dragover');
+                    });
+                });
+            }
+        });
+        
+        // HTMX event handlers
+        document.body.addEventListener('htmx:afterRequest', function(evt) {
+            if (evt.detail.successful) {
+                // Success handling
+            } else {
+                showToast('An error occurred. Please try again.', 'error');
+            }
+        });
+    </script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

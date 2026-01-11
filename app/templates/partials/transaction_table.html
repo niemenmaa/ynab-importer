@@ -1,0 +1,240 @@
+<!-- Transaction results after CSV parsing -->
+<div class="space-y-6">
+    <!-- Stats bar -->
+    <div class="glass-card rounded-xl p-4 flex items-center justify-between">
+        <div class="flex items-center gap-6">
+            <div class="flex items-center gap-2">
+                <span class="text-2xl font-display font-bold text-white">{{ stats.total }}</span>
+                <span class="text-slate-400">transactions</span>
+            </div>
+            <div class="w-px h-8 bg-slate-600"></div>
+            <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span class="text-slate-300">{{ stats.auto_categorized }} auto-categorized</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-amber-500 needs-review"></span>
+                <span class="text-slate-300">{{ stats.needs_review }} need review</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Transaction table -->
+    <div class="glass-card rounded-xl overflow-hidden">
+        <form id="import-form" hx-post="/transactions/import" hx-target="#import-result">
+            <input type="hidden" name="transactions" id="transactions-data">
+            
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b border-slate-700/50 text-left">
+                        <th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Date</th>
+                        <th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Payee</th>
+                        <th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Memo</th>
+                        <th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Amount</th>
+                        <th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Category</th>
+                        <th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider w-10"></th>
+                    </tr>
+                </thead>
+                <tbody id="transaction-list">
+                    {% for txn in transactions %}
+                    <tr class="transaction-row border-b border-slate-700/30 {% if not txn.auto_categorized %}bg-amber-900/10{% endif %}"
+                        data-index="{{ loop.index0 }}">
+                        <td class="px-4 py-3 text-sm text-slate-300 font-mono">{{ txn.original_date }}</td>
+                        <td class="px-4 py-3">
+                            <div class="text-sm font-medium text-white">{{ txn.payee[:40] }}{% if txn.payee|length > 40 %}...{% endif %}</div>
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="text-sm text-slate-400 truncate max-w-xs" title="{{ txn.memo or '' }}">
+                                {{ (txn.memo or '-')[:50] }}{% if txn.memo and txn.memo|length > 50 %}...{% endif %}
+                            </div>
+                        </td>
+                        <td class="px-4 py-3 text-right">
+                            <span class="text-sm font-mono {% if txn.amount < 0 %}text-red-400{% else %}text-emerald-400{% endif %}">
+                                {{ "%.2f"|format(txn.amount) }} €
+                            </span>
+                        </td>
+                        <td class="px-4 py-3" id="category-cell-{{ loop.index0 }}">
+                            {% if txn.auto_categorized %}
+                            <div class="flex items-center gap-2">
+                                <span class="text-emerald-500">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                </span>
+                                <span class="text-sm text-slate-300">{{ txn.category_name }}</span>
+                            </div>
+                            {% else %}
+                            <select name="category-{{ loop.index0 }}" 
+                                    class="category-select w-full px-3 py-1.5 bg-slate-700 border border-amber-500/50 rounded-lg text-sm text-white focus:border-accent focus:ring-1 focus:ring-accent outline-none"
+                                    onchange="updateTransactionCategory({{ loop.index0 }}, this)">
+                                <option value="">Select category...</option>
+                                {% for cat in categories %}
+                                <option value="{{ cat.id }}" data-name="{{ cat.display_name }}">{{ cat.display_name }}</option>
+                                {% endfor %}
+                            </select>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            {% if not txn.auto_categorized %}
+                            <button type="button" 
+                                    onclick="openRuleModal({{ loop.index0 }})"
+                                    class="p-1.5 text-slate-400 hover:text-accent hover:bg-slate-700/50 rounded-lg transition-colors"
+                                    title="Create rule from this transaction">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                                </svg>
+                            </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            <!-- Import button -->
+            <div class="p-4 border-t border-slate-700/50 flex justify-between items-center">
+                <div class="text-sm text-slate-400">
+                    <span id="uncategorized-count">{{ stats.needs_review }}</span> transactions still need categories
+                </div>
+                <button type="button"
+                        onclick="submitImport()"
+                        id="import-btn"
+                        class="px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    <span>Import to YNAB</span>
+                </button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Import result placeholder -->
+    <div id="import-result"></div>
+</div>
+
+<!-- Rule creation modal -->
+<div id="rule-modal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen px-4">
+        <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" onclick="closeRuleModal()"></div>
+        <div class="relative glass-card rounded-2xl p-6 w-full max-w-lg">
+            <h3 class="font-display text-xl font-semibold text-white mb-4">Create Rule</h3>
+            <form id="rule-form" hx-post="/rules" hx-swap="none" onsubmit="handleRuleSubmit(event)">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-1">Rule Name</label>
+                        <input type="text" name="name" id="rule-name" required
+                               class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:border-accent focus:ring-1 focus:ring-accent outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-1">Payee Contains</label>
+                        <input type="text" name="payee_contains" id="rule-payee-contains"
+                               class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:border-accent focus:ring-1 focus:ring-accent outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-1">Category</label>
+                        <select name="category_id" id="rule-category" required
+                                class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:border-accent focus:ring-1 focus:ring-accent outline-none">
+                            <option value="">Select category...</option>
+                            {% for cat in categories %}
+                            <option value="{{ cat.id }}" data-name="{{ cat.display_name }}">{{ cat.display_name }}</option>
+                            {% endfor %}
+                        </select>
+                        <input type="hidden" name="category_name" id="rule-category-name">
+                    </div>
+                    <input type="hidden" name="priority" value="10">
+                </div>
+                <div class="mt-6 flex justify-end gap-3">
+                    <button type="button" onclick="closeRuleModal()" 
+                            class="px-4 py-2 text-slate-300 hover:text-white transition-colors">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 bg-accent text-white font-medium rounded-lg hover:opacity-90 transition-opacity">
+                        Create Rule
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Store transactions data
+    let transactionsData = {{ transactions | tojson | safe }};
+    
+    function updateTransactionCategory(index, select) {
+        const categoryId = select.value;
+        const categoryName = select.options[select.selectedIndex].dataset.name || '';
+        
+        transactionsData[index].category_id = categoryId;
+        transactionsData[index].category_name = categoryName;
+        
+        // Update uncategorized count
+        const uncategorized = transactionsData.filter(t => !t.category_id).length;
+        document.getElementById('uncategorized-count').textContent = uncategorized;
+        
+        // Visual feedback
+        if (categoryId) {
+            select.classList.remove('border-amber-500/50');
+            select.classList.add('border-emerald-500/50');
+        }
+    }
+    
+    function submitImport() {
+        // Check if all transactions have categories
+        const uncategorized = transactionsData.filter(t => !t.category_id);
+        if (uncategorized.length > 0) {
+            if (!confirm(`${uncategorized.length} transactions don't have categories. They will be imported without categories. Continue?`)) {
+                return;
+            }
+        }
+        
+        // Prepare data
+        document.getElementById('transactions-data').value = JSON.stringify(transactionsData);
+        
+        // Submit form via HTMX
+        htmx.trigger('#import-form', 'submit');
+    }
+    
+    let currentRuleIndex = null;
+    
+    function openRuleModal(index) {
+        currentRuleIndex = index;
+        const txn = transactionsData[index];
+        
+        // Pre-fill form
+        document.getElementById('rule-name').value = `Rule for ${txn.payee.substring(0, 30)}`;
+        document.getElementById('rule-payee-contains').value = txn.payee.split(' ')[0];
+        
+        document.getElementById('rule-modal').classList.remove('hidden');
+    }
+    
+    function closeRuleModal() {
+        document.getElementById('rule-modal').classList.add('hidden');
+        currentRuleIndex = null;
+    }
+    
+    function handleRuleSubmit(event) {
+        event.preventDefault();
+        
+        const form = event.target;
+        const categorySelect = document.getElementById('rule-category');
+        document.getElementById('rule-category-name').value = categorySelect.options[categorySelect.selectedIndex].dataset.name || '';
+        
+        // Submit the rule creation
+        const formData = new FormData(form);
+        
+        fetch('/rules', {
+            method: 'POST',
+            body: formData
+        }).then(response => {
+            if (response.ok) {
+                showToast('Rule created successfully!', 'success');
+                closeRuleModal();
+            } else {
+                showToast('Failed to create rule', 'error');
+            }
+        });
+    }
+</script>
