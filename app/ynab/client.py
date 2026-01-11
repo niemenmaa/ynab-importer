@@ -205,6 +205,61 @@ class YNABClient:
             for p in payees
             if not p.get("deleted", False)
         ]
+    
+    async def get_transactions(
+        self,
+        since_date: Optional[str] = None,
+        account_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get list of transactions for the configured budget.
+        
+        Args:
+            since_date: If specified, only transactions on or after this date 
+                       will be included. Format: YYYY-MM-DD
+            account_id: If specified, only transactions for this account
+        
+        Returns:
+            List of transaction dicts with payee, category, amount, date, etc.
+        """
+        if not self.budget_id:
+            return []
+        
+        # Build endpoint with optional query params
+        if account_id:
+            endpoint = f"/budgets/{self.budget_id}/accounts/{account_id}/transactions"
+        else:
+            endpoint = f"/budgets/{self.budget_id}/transactions"
+        
+        if since_date:
+            endpoint += f"?since_date={since_date}"
+        
+        response = await self._request("GET", endpoint)
+        transactions = response.get("data", {}).get("transactions", [])
+        
+        # Filter out deleted transactions and format response
+        result = []
+        for txn in transactions:
+            if txn.get("deleted", False):
+                continue
+            
+            result.append({
+                "id": txn.get("id"),
+                "date": txn.get("date"),
+                "amount": txn.get("amount", 0) / 1000,  # Convert milliunits to units
+                "amount_milliunits": txn.get("amount", 0),
+                "payee_id": txn.get("payee_id"),
+                "payee_name": txn.get("payee_name") or "",
+                "category_id": txn.get("category_id"),
+                "category_name": txn.get("category_name") or "",
+                "memo": txn.get("memo") or "",
+                "account_id": txn.get("account_id"),
+                "account_name": txn.get("account_name") or "",
+                "cleared": txn.get("cleared"),
+                "approved": txn.get("approved", False),
+            })
+        
+        return result
 
 
 class YNABAPIError(Exception):

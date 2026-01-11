@@ -1,13 +1,19 @@
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.templating import Jinja2Templates
+from fastapi.responses import JSONResponse
 from pathlib import Path
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import Optional
+from typing import Optional, List
 
 from app.database import get_db
 from app.models import Rule
 from app.ynab import YNABClient
+
+
+class BulkDeleteRequest(BaseModel):
+    rule_ids: List[int]
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
@@ -98,6 +104,30 @@ async def delete_rule(
         await db.commit()
     
     return ""
+
+
+@router.post("/bulk-delete")
+async def bulk_delete_rules(
+    request: BulkDeleteRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Bulk delete rules (soft delete by setting is_active=False)."""
+    if not request.rule_ids:
+        return JSONResponse({"deleted": 0})
+    
+    result = await db.execute(
+        select(Rule).where(Rule.id.in_(request.rule_ids), Rule.is_active == True)
+    )
+    rules = result.scalars().all()
+    
+    deleted_count = 0
+    for rule in rules:
+        rule.is_active = False
+        deleted_count += 1
+    
+    await db.commit()
+    
+    return JSONResponse({"deleted": deleted_count})
 
 
 @router.put("/{rule_id}")

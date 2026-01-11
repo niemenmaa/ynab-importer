@@ -5,7 +5,7 @@ from fastapi.templating import Jinja2Templates
 from pathlib import Path
 
 from app.database import init_db
-from app.routers import upload, transactions, rules
+from app.routers import upload, transactions, rules, suggestions
 
 
 @asynccontextmanager
@@ -30,6 +30,7 @@ templates = Jinja2Templates(directory=str(templates_path))
 app.include_router(upload.router, prefix="/upload", tags=["Upload"])
 app.include_router(transactions.router, prefix="/transactions", tags=["Transactions"])
 app.include_router(rules.router, prefix="/rules", tags=["Rules"])
+app.include_router(suggestions.router, prefix="/suggestions", tags=["Suggestions"])
 
 
 @app.get("/")

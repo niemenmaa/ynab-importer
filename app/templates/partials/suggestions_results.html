@@ -1,0 +1,438 @@
+<!-- Results summary -->
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h3 class="font-display text-xl font-semibold text-white">
+                {% if suggestions %}
+                    {{ suggestions|length }} Rule Suggestion{{ 's' if suggestions|length != 1 else '' }} Found
+                {% else %}
+                    No Suggestions
+                {% endif %}
+            </h3>
+            <p class="text-slate-400 text-sm mt-1">
+                Analyzed {{ total_transactions }} transactions
+            </p>
+        </div>
+        {% if suggestions %}
+        <div class="flex items-center gap-2 text-sm text-slate-400">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Select suggestions to bulk create rules
+        </div>
+        {% endif %}
+    </div>
+
+    {% if suggestions %}
+    <!-- Bulk Actions Bar (hidden by default) -->
+    <div id="suggestions-bulk-bar" class="hidden glass-card rounded-xl p-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <span class="text-white font-medium">
+                <span id="suggestions-selected-count">0</span> selected
+            </span>
+            <button onclick="clearSuggestionSelection()" class="text-slate-400 hover:text-white text-sm">
+                Clear selection
+            </button>
+        </div>
+        <div class="flex items-center gap-2">
+            <button onclick="bulkCreateRules()" 
+                    class="px-4 py-2 bg-gradient-to-r from-accent to-blue-500 text-white font-medium rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                </svg>
+                Create Selected Rules
+            </button>
+        </div>
+    </div>
+    
+    <!-- Suggestions table -->
+    <div class="glass-card rounded-xl overflow-hidden">
+        <table class="w-full">
+            <thead>
+                <tr class="border-b border-slate-700/50 text-left">
+                    <th class="px-4 py-3 w-12">
+                        <input type="checkbox" id="select-all-suggestions" onchange="toggleAllSuggestions(this)"
+                               class="w-4 h-4 rounded border-slate-600 bg-slate-700 text-accent focus:ring-accent focus:ring-offset-0">
+                    </th>
+                    <th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Payee</th>
+                    <th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center w-24">Type</th>
+                    <th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Suggested Category</th>
+                    <th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Confidence</th>
+                    <th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Transactions</th>
+                    <th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider w-32">Action</th>
+                </tr>
+            </thead>
+            <tbody id="suggestions-list">
+                {% for suggestion in suggestions %}
+                <tr class="border-b border-slate-700/30 hover:bg-slate-700/30 transition-colors suggestion-row"
+                    data-index="{{ loop.index0 }}"
+                    data-payee="{{ suggestion.payee_name }}"
+                    data-category-id="{{ suggestion.category_id }}"
+                    data-category-name="{{ suggestion.category_name }}"
+                    data-direction="{{ suggestion.direction }}">
+                    <td class="px-4 py-4">
+                        <input type="checkbox" class="suggestion-checkbox w-4 h-4 rounded border-slate-600 bg-slate-700 text-accent focus:ring-accent focus:ring-offset-0"
+                               data-index="{{ loop.index0 }}"
+                               onchange="toggleSuggestionSelection(this, {{ loop.index0 }})">
+                    </td>
+                    <td class="px-4 py-4">
+                        <div class="font-medium text-white">{{ suggestion.payee_name }}</div>
+                    </td>
+                    <td class="px-4 py-4 text-center">
+                        {% if suggestion.direction == 'incoming' %}
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-400">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
+                            </svg>
+                            Income
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/20 text-red-400">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/>
+                            </svg>
+                            Expense
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-4">
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-700 text-slate-300">
+                            {{ suggestion.category_name }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-4 text-center">
+                        <div class="inline-flex items-center gap-2">
+                            <div class="w-16 h-2 bg-slate-700 rounded-full overflow-hidden">
+                                <div class="h-full rounded-full {% if suggestion.confidence >= 98 %}bg-emerald-500{% elif suggestion.confidence >= 90 %}bg-amber-500{% else %}bg-slate-500{% endif %}"
+                                     style="width: {{ suggestion.confidence }}%"></div>
+                            </div>
+                            <span class="text-sm font-mono {% if suggestion.confidence >= 98 %}text-emerald-400{% elif suggestion.confidence >= 90 %}text-amber-400{% else %}text-slate-400{% endif %}">
+                                {{ suggestion.confidence }}%
+                            </span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-4 text-center">
+                        <span class="text-slate-300">{{ suggestion.transaction_count }}</span>
+                        <span class="text-slate-500">/{{ suggestion.total_for_payee }}</span>
+                    </td>
+                    <td class="px-4 py-4">
+                        <button onclick="openCreateRuleModal('{{ suggestion.payee_name | e }}', '{{ suggestion.category_id }}', '{{ suggestion.category_name | e }}', '{{ suggestion.direction }}')"
+                                class="create-rule-btn px-3 py-1.5 text-xs font-medium bg-accent/20 text-accent rounded-lg hover:bg-accent/30 transition-colors flex items-center gap-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                            </svg>
+                            Create Rule
+                        </button>
+                    </td>
+                </tr>
+                <!-- Expandable sample transactions row -->
+                <tr class="hidden sample-row bg-slate-800/50" id="samples-{{ loop.index }}">
+                    <td colspan="7" class="px-4 py-4">
+                        <div class="text-xs text-slate-400 mb-2 uppercase tracking-wider">Sample Transactions</div>
+                        <div class="space-y-2">
+                            {% for txn in suggestion.sample_transactions %}
+                            <div class="flex items-center justify-between text-sm py-1 border-b border-slate-700/30 last:border-0">
+                                <div class="flex items-center gap-4">
+                                    <span class="text-slate-500 font-mono">{{ txn.date }}</span>
+                                    <span class="text-slate-300">{{ txn.memo or '—' }}</span>
+                                </div>
+                                <span class="font-mono {% if txn.amount < 0 %}text-red-400{% else %}text-emerald-400{% endif %}">
+                                    {{ "%.2f"|format(txn.amount) }}
+                                </span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <!-- No suggestions found -->
+    <div class="glass-card rounded-xl p-12 text-center">
+        <div class="text-slate-400">
+            <svg class="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <p class="text-lg font-medium text-slate-300">No patterns found above threshold</p>
+            <p class="mt-2">Try lowering the confidence threshold or increasing the date range to find more suggestions.</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Create Rule Modal -->
+<div id="create-rule-modal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen px-4">
+        <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" onclick="closeCreateRuleModal()"></div>
+        <div class="relative glass-card rounded-2xl p-6 w-full max-w-md">
+            <h3 class="font-display text-xl font-semibold text-white mb-6">Create Rule</h3>
+            
+            <form hx-post="/suggestions/create-rule" 
+                  hx-target="#create-rule-result"
+                  hx-swap="innerHTML">
+                <input type="hidden" name="payee_name" id="modal-payee-name">
+                <input type="hidden" name="category_id" id="modal-category-id">
+                <input type="hidden" name="category_name" id="modal-category-name">
+                <input type="hidden" name="direction" id="modal-direction">
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-1">Payee</label>
+                        <div id="modal-payee-display" class="px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white"></div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-1">Transaction Type</label>
+                        <div id="modal-direction-display" class="px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg"></div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-1">Category</label>
+                        <div id="modal-category-display" class="px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white"></div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-2">Match Type</label>
+                        <div class="flex gap-4">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="rule_type" value="exact" checked
+                                       class="w-4 h-4 text-accent border-slate-600 focus:ring-accent focus:ring-offset-0 bg-slate-700">
+                                <span class="text-sm text-slate-300">Exact match</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="rule_type" value="contains"
+                                       class="w-4 h-4 text-accent border-slate-600 focus:ring-accent focus:ring-offset-0 bg-slate-700">
+                                <span class="text-sm text-slate-300">Contains</span>
+                            </label>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-1">"Contains" is more flexible but may match unintended payees</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-1">Priority</label>
+                        <input type="number" name="priority" value="10" min="0" max="100"
+                               class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:border-accent focus:ring-1 focus:ring-accent outline-none">
+                        <p class="text-xs text-slate-500 mt-1">Higher priority rules are checked first</p>
+                    </div>
+                </div>
+                
+                <div id="create-rule-result" class="mt-4"></div>
+                
+                <div class="mt-6 flex justify-end gap-3 border-t border-slate-700/50 pt-4">
+                    <button type="button" onclick="closeCreateRuleModal()" 
+                            class="px-4 py-2 text-slate-300 hover:text-white transition-colors">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            class="px-6 py-2 bg-gradient-to-r from-accent to-blue-500 text-white font-semibold rounded-lg hover:opacity-90 transition-opacity">
+                        Create Rule
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Create Progress Modal -->
+<div id="bulk-create-modal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen px-4">
+        <div class="fixed inset-0 bg-black/60 backdrop-blur-sm"></div>
+        <div class="relative glass-card rounded-2xl p-6 w-full max-w-md text-center">
+            <div id="bulk-create-content">
+                <svg class="animate-spin h-12 w-12 mx-auto mb-4 text-accent" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <h3 class="font-display text-xl font-semibold text-white mb-2">Creating Rules...</h3>
+                <p class="text-slate-400" id="bulk-create-status">Processing...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Suggestion selection management
+    let selectedSuggestions = new Set();
+    
+    function updateSuggestionSelectionUI() {
+        const count = selectedSuggestions.size;
+        document.getElementById('suggestions-selected-count').textContent = count;
+        document.getElementById('suggestions-bulk-bar').classList.toggle('hidden', count === 0);
+        
+        // Update select all checkbox state
+        const allCheckboxes = document.querySelectorAll('.suggestion-checkbox');
+        const selectAllCheckbox = document.getElementById('select-all-suggestions');
+        if (allCheckboxes.length > 0) {
+            selectAllCheckbox.checked = selectedSuggestions.size === allCheckboxes.length;
+            selectAllCheckbox.indeterminate = selectedSuggestions.size > 0 && selectedSuggestions.size < allCheckboxes.length;
+        }
+    }
+    
+    function toggleSuggestionSelection(checkbox, index) {
+        if (checkbox.checked) {
+            selectedSuggestions.add(index);
+        } else {
+            selectedSuggestions.delete(index);
+        }
+        updateSuggestionSelectionUI();
+    }
+    
+    function toggleAllSuggestions(checkbox) {
+        const allCheckboxes = document.querySelectorAll('.suggestion-checkbox');
+        allCheckboxes.forEach(cb => {
+            cb.checked = checkbox.checked;
+            const index = parseInt(cb.dataset.index);
+            if (checkbox.checked) {
+                selectedSuggestions.add(index);
+            } else {
+                selectedSuggestions.delete(index);
+            }
+        });
+        updateSuggestionSelectionUI();
+    }
+    
+    function clearSuggestionSelection() {
+        selectedSuggestions.clear();
+        document.querySelectorAll('.suggestion-checkbox').forEach(cb => cb.checked = false);
+        document.getElementById('select-all-suggestions').checked = false;
+        updateSuggestionSelectionUI();
+    }
+    
+    function bulkCreateRules() {
+        if (selectedSuggestions.size === 0) return;
+        
+        // Gather selected suggestion data
+        const suggestions = [];
+        selectedSuggestions.forEach(index => {
+            const row = document.querySelector(`.suggestion-row[data-index="${index}"]`);
+            if (row) {
+                suggestions.push({
+                    payee_name: row.dataset.payee,
+                    category_id: row.dataset.categoryId,
+                    category_name: row.dataset.categoryName,
+                    direction: row.dataset.direction
+                });
+            }
+        });
+        
+        // Show progress modal
+        document.getElementById('bulk-create-modal').classList.remove('hidden');
+        document.getElementById('bulk-create-status').textContent = `Creating ${suggestions.length} rules...`;
+        
+        // Send bulk create request
+        fetch('/suggestions/bulk-create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ suggestions: suggestions })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Update modal with results
+            const content = document.getElementById('bulk-create-content');
+            if (data.created > 0) {
+                content.innerHTML = `
+                    <svg class="w-12 h-12 mx-auto mb-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <h3 class="font-display text-xl font-semibold text-white mb-2">Rules Created!</h3>
+                    <p class="text-slate-400">${data.created} rule(s) created${data.skipped > 0 ? `, ${data.skipped} skipped (already exist)` : ''}</p>
+                    <button onclick="closeBulkCreateModal()" class="mt-4 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors">
+                        Close
+                    </button>
+                `;
+                
+                // Mark created rows
+                selectedSuggestions.forEach(index => {
+                    const row = document.querySelector(`.suggestion-row[data-index="${index}"]`);
+                    if (row) {
+                        row.style.opacity = '0.5';
+                        const btn = row.querySelector('.create-rule-btn');
+                        if (btn) {
+                            btn.disabled = true;
+                            btn.textContent = 'Created';
+                        }
+                    }
+                });
+                
+                clearSuggestionSelection();
+                showToast(`Created ${data.created} rule(s)`, 'success');
+            } else {
+                content.innerHTML = `
+                    <svg class="w-12 h-12 mx-auto mb-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                    <h3 class="font-display text-xl font-semibold text-white mb-2">No Rules Created</h3>
+                    <p class="text-slate-400">${data.skipped > 0 ? `All ${data.skipped} rules already exist` : 'No rules were created'}</p>
+                    <button onclick="closeBulkCreateModal()" class="mt-4 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors">
+                        Close
+                    </button>
+                `;
+            }
+        })
+        .catch(() => {
+            document.getElementById('bulk-create-content').innerHTML = `
+                <svg class="w-12 h-12 mx-auto mb-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                <h3 class="font-display text-xl font-semibold text-white mb-2">Error</h3>
+                <p class="text-slate-400">Failed to create rules. Please try again.</p>
+                <button onclick="closeBulkCreateModal()" class="mt-4 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors">
+                    Close
+                </button>
+            `;
+            showToast('Failed to create rules', 'error');
+        });
+    }
+    
+    function closeBulkCreateModal() {
+        document.getElementById('bulk-create-modal').classList.add('hidden');
+        // Reset modal content
+        document.getElementById('bulk-create-content').innerHTML = `
+            <svg class="animate-spin h-12 w-12 mx-auto mb-4 text-accent" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <h3 class="font-display text-xl font-semibold text-white mb-2">Creating Rules...</h3>
+            <p class="text-slate-400" id="bulk-create-status">Processing...</p>
+        `;
+    }
+
+    // Toggle sample transactions visibility
+    document.querySelectorAll('.suggestion-row').forEach((row, index) => {
+        row.addEventListener('click', (e) => {
+            // Don't toggle if clicking the checkbox or button
+            if (e.target.closest('button') || e.target.closest('input[type="checkbox"]')) return;
+            
+            const sampleRow = document.getElementById(`samples-${index + 1}`);
+            if (sampleRow) {
+                sampleRow.classList.toggle('hidden');
+            }
+        });
+    });
+    
+    function openCreateRuleModal(payee, categoryId, categoryName, direction) {
+        document.getElementById('modal-payee-name').value = payee;
+        document.getElementById('modal-category-id').value = categoryId;
+        document.getElementById('modal-category-name').value = categoryName;
+        document.getElementById('modal-direction').value = direction;
+        document.getElementById('modal-payee-display').textContent = payee;
+        document.getElementById('modal-category-display').textContent = categoryName;
+        
+        // Show direction with appropriate styling
+        const directionDisplay = document.getElementById('modal-direction-display');
+        if (direction === 'incoming') {
+            directionDisplay.innerHTML = '<span class="inline-flex items-center gap-1 text-emerald-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg> Income (positive amounts)</span>';
+        } else {
+            directionDisplay.innerHTML = '<span class="inline-flex items-center gap-1 text-red-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg> Expense (negative amounts)</span>';
+        }
+        
+        document.getElementById('create-rule-result').innerHTML = '';
+        document.getElementById('create-rule-modal').classList.remove('hidden');
+    }
+    
+    function closeCreateRuleModal() {
+        document.getElementById('create-rule-modal').classList.add('hidden');
+    }
+</script>

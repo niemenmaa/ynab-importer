@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Rule Suggestions - YNAB Importer{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <!-- Header -->
+    <div>
+        <h1 class="font-display text-3xl font-bold text-white">Rule Suggestions</h1>
+        <p class="text-slate-400 mt-1">Analyze your YNAB transactions to discover patterns and auto-generate rules.</p>
+    </div>
+    
+    <!-- Filters Card -->
+    <div class="glass-card rounded-xl p-6">
+        <h3 class="font-display text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+            </svg>
+            Analysis Filters
+        </h3>
+        
+        <form id="analyze-form" 
+              hx-get="/suggestions/analyze" 
+              hx-target="#results-container" 
+              hx-indicator="#loading-indicator"
+              class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            
+            <!-- Since Date -->
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">Since Date</label>
+                <input type="date" 
+                       name="since_date" 
+                       id="since-date"
+                       value="{{ default_since }}"
+                       class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:border-accent focus:ring-1 focus:ring-accent outline-none">
+                <p class="text-xs text-slate-500 mt-1">Transactions from this date forward</p>
+            </div>
+            
+            <!-- Account Filter -->
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">Account</label>
+                <select name="account_id" 
+                        class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:border-accent focus:ring-1 focus:ring-accent outline-none">
+                    <option value="">All Accounts</option>
+                    {% for account in accounts %}
+                    <option value="{{ account.id }}">{{ account.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <!-- Confidence Threshold -->
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">
+                    Confidence Threshold: <span id="threshold-value" class="text-accent font-mono">98</span>%
+                </label>
+                <input type="range" 
+                       name="threshold" 
+                       id="threshold-slider"
+                       min="50" max="100" value="98" step="1"
+                       oninput="document.getElementById('threshold-value').textContent = this.value"
+                       class="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-accent">
+                <p class="text-xs text-slate-500 mt-1">Min % of transactions with same category</p>
+            </div>
+            
+            <!-- Min Transactions -->
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">Min Transactions</label>
+                <input type="number" 
+                       name="min_transactions" 
+                       value="3" 
+                       min="1" max="100"
+                       class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:border-accent focus:ring-1 focus:ring-accent outline-none">
+                <p class="text-xs text-slate-500 mt-1">Minimum transactions per payee</p>
+            </div>
+            
+            <!-- Analyze Button -->
+            <div class="md:col-span-2 lg:col-span-4 flex items-center gap-4">
+                <button type="submit"
+                        class="px-6 py-2.5 bg-gradient-to-r from-accent to-blue-500 text-white font-semibold rounded-xl hover:opacity-90 transition-opacity flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                    </svg>
+                    Analyze Transactions
+                </button>
+                
+                <!-- Loading Indicator -->
+                <div id="loading-indicator" class="htmx-indicator flex items-center gap-2 text-slate-400">
+                    <svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Analyzing transactions...</span>
+                </div>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Results Container -->
+    <div id="results-container">
+        <!-- Initial state - no results yet -->
+        <div class="glass-card rounded-xl p-12 text-center">
+            <div class="text-slate-400">
+                <svg class="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                </svg>
+                <p class="text-lg font-medium text-slate-300">Ready to analyze</p>
+                <p class="mt-2">Configure your filters above and click "Analyze Transactions" to find rule suggestions.</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tips section -->
+    <div class="glass-card rounded-xl p-6">
+        <h3 class="font-display text-lg font-semibold text-white mb-4">How It Works</h3>
+        <div class="grid md:grid-cols-3 gap-6 text-sm">
+            <div class="flex gap-3">
+                <div class="w-10 h-10 rounded-lg bg-accent/20 flex items-center justify-center flex-shrink-0">
+                    <span class="text-accent font-bold text-lg">1</span>
+                </div>
+                <div>
+                    <p class="text-slate-300 font-medium">Fetch Transactions</p>
+                    <p class="text-slate-400 mt-1">We load your categorized transactions from YNAB for the selected period.</p>
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <div class="w-10 h-10 rounded-lg bg-accent/20 flex items-center justify-center flex-shrink-0">
+                    <span class="text-accent font-bold text-lg">2</span>
+                </div>
+                <div>
+                    <p class="text-slate-300 font-medium">Analyze Patterns</p>
+                    <p class="text-slate-400 mt-1">We group transactions by payee and calculate category consistency.</p>
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <div class="w-10 h-10 rounded-lg bg-accent/20 flex items-center justify-center flex-shrink-0">
+                    <span class="text-accent font-bold text-lg">3</span>
+                </div>
+                <div>
+                    <p class="text-slate-300 font-medium">Suggest Rules</p>
+                    <p class="text-slate-400 mt-1">Payees with high category consistency become rule suggestions you can accept.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

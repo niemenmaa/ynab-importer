@@ -19,11 +19,36 @@
         </button>
     </div>
     
+    <!-- Bulk Actions Bar (hidden by default) -->
+    <div id="bulk-actions-bar" class="hidden glass-card rounded-xl p-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <span class="text-white font-medium">
+                <span id="selected-count">0</span> selected
+            </span>
+            <button onclick="clearSelection()" class="text-slate-400 hover:text-white text-sm">
+                Clear selection
+            </button>
+        </div>
+        <div class="flex items-center gap-2">
+            <button onclick="bulkDeleteRules()" 
+                    class="px-4 py-2 bg-red-500/20 text-red-400 font-medium rounded-lg hover:bg-red-500/30 transition-colors flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+                Delete Selected
+            </button>
+        </div>
+    </div>
+    
     <!-- Rules table -->
     <div class="glass-card rounded-xl overflow-hidden">
         <table class="w-full">
             <thead>
                 <tr class="border-b border-slate-700/50 text-left">
+                    <th class="px-4 py-3 w-12">
+                        <input type="checkbox" id="select-all-rules" onchange="toggleAllRules(this)"
+                               class="w-4 h-4 rounded border-slate-600 bg-slate-700 text-accent focus:ring-accent focus:ring-offset-0">
+                    </th>
                     <th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider w-16">Priority</th>
                     <th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Name</th>
                     <th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Conditions</th>
@@ -35,8 +60,8 @@
                 {% for rule in rules %}
                 {% include "partials/rule_row.html" %}
                 {% else %}
-                <tr>
-                    <td colspan="5" class="px-4 py-12 text-center">
+                <tr id="empty-rules-row">
+                    <td colspan="6" class="px-4 py-12 text-center">
                         <div class="text-slate-400">
                             <svg class="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
@@ -242,6 +267,82 @@
 </div>
 
 <script>
+    // Selection management
+    let selectedRuleIds = new Set();
+    
+    function updateSelectionUI() {
+        const count = selectedRuleIds.size;
+        document.getElementById('selected-count').textContent = count;
+        document.getElementById('bulk-actions-bar').classList.toggle('hidden', count === 0);
+        
+        // Update select all checkbox state
+        const allCheckboxes = document.querySelectorAll('.rule-checkbox');
+        const selectAllCheckbox = document.getElementById('select-all-rules');
+        if (allCheckboxes.length > 0) {
+            selectAllCheckbox.checked = selectedRuleIds.size === allCheckboxes.length;
+            selectAllCheckbox.indeterminate = selectedRuleIds.size > 0 && selectedRuleIds.size < allCheckboxes.length;
+        }
+    }
+    
+    function toggleRuleSelection(checkbox, ruleId) {
+        if (checkbox.checked) {
+            selectedRuleIds.add(ruleId);
+        } else {
+            selectedRuleIds.delete(ruleId);
+        }
+        updateSelectionUI();
+    }
+    
+    function toggleAllRules(checkbox) {
+        const allCheckboxes = document.querySelectorAll('.rule-checkbox');
+        allCheckboxes.forEach(cb => {
+            cb.checked = checkbox.checked;
+            const ruleId = parseInt(cb.dataset.ruleId);
+            if (checkbox.checked) {
+                selectedRuleIds.add(ruleId);
+            } else {
+                selectedRuleIds.delete(ruleId);
+            }
+        });
+        updateSelectionUI();
+    }
+    
+    function clearSelection() {
+        selectedRuleIds.clear();
+        document.querySelectorAll('.rule-checkbox').forEach(cb => cb.checked = false);
+        document.getElementById('select-all-rules').checked = false;
+        updateSelectionUI();
+    }
+    
+    function bulkDeleteRules() {
+        if (selectedRuleIds.size === 0) return;
+        
+        if (!confirm(`Are you sure you want to delete ${selectedRuleIds.size} rule(s)?`)) return;
+        
+        fetch('/rules/bulk-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rule_ids: Array.from(selectedRuleIds) })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.deleted > 0) {
+                // Remove deleted rows from DOM
+                selectedRuleIds.forEach(id => {
+                    const row = document.querySelector(`tr[data-rule-id="${id}"]`);
+                    if (row) row.remove();
+                });
+                showToast(`Deleted ${data.deleted} rule(s)`, 'success');
+                clearSelection();
+            } else {
+                showToast('Failed to delete rules', 'error');
+            }
+        })
+        .catch(() => {
+            showToast('Failed to delete rules', 'error');
+        });
+    }
+
     function openCreateModal() {
         document.getElementById('modal-title').textContent = 'Create Rule';
         document.getElementById('rule-form').setAttribute('hx-post', '/rules');

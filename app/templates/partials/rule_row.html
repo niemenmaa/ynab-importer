@@ -13,6 +13,11 @@
     data-category-id="{{ rule.category_id }}"
     data-category-name="{{ rule.category_name }}">
     <td class="px-4 py-3">
+        <input type="checkbox" class="rule-checkbox w-4 h-4 rounded border-slate-600 bg-slate-700 text-accent focus:ring-accent focus:ring-offset-0"
+               data-rule-id="{{ rule.id }}"
+               onchange="toggleRuleSelection(this, {{ rule.id }})">
+    </td>
+    <td class="px-4 py-3">
         <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-700 text-sm font-mono text-accent">
             {{ rule.priority }}
         </span>
@@ -50,7 +55,7 @@
             {% if rule.amount_min or rule.amount_max %}
             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-teal-500/20 text-teal-300 font-mono">
                 {% if rule.amount_min %}{{ "%.0f"|format(rule.amount_min) }}{% else %}-∞{% endif %}
-                < amt <
+                &lt; amt &lt;
                 {% if rule.amount_max %}{{ "%.0f"|format(rule.amount_max) }}{% else %}∞{% endif %}
             </span>
             {% endif %}
